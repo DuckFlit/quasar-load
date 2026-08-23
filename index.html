@@ -44,26 +44,26 @@
     overflow: hidden;
     z-index: 0;
   }
-  /* Плеер больше экрана на 20%: субтитры и панель YouTube уходят за края.
-     !important побеждает inline-стили, которые ставит сам YouTube. */
-  #yt-player {
+  /* Плеер больше экрана на ~20%: субтитры и панель YouTube
+     физически уезжают за края экрана */
+  #yt-frame {
     position: absolute;
     top: 50%; left: 50%;
-    width: 214vh !important;
-    height: 120.4vh !important;
-    min-width: 100vw !important;
-    min-height: 67.5vw !important;
+    width: 214vh;
+    height: 120.4vh;
+    min-width: 100vw;
+    min-height: 67.5vw;
     transform: translate(-50%, -50%);
-    border: 0 !important;
-    pointer-events: none !important;
+    border: 0;
+    pointer-events: none;
   }
-  /* Невидимая заглушка: перехватывает мышь */
+  /* Невидимая заглушка: перехватывает мышь, плеер не видит наведений */
   .yt-blocker {
     position: absolute;
     inset: 0;
     z-index: 1;
   }
-  /* Занавес: прячет стартовые кнопки YouTube, потом плавно исчезает */
+  /* Занавес: прячет стартовую мишуру YouTube, открывается по таймеру */
   .yt-curtain {
     position: absolute;
     inset: 0;
@@ -172,7 +172,7 @@
 
 <!-- YouTube (если нет картинок) -->
 <div class="youtube-container" id="yt-container" style="display:none;">
-  <div id="yt-player"></div>
+  <iframe id="yt-frame" src="" allow="autoplay; encrypted-media"></iframe>
   <div class="yt-blocker"></div>
   <div class="yt-curtain" id="yt-curtain"></div>
 </div>
@@ -207,7 +207,7 @@ const CONFIG = {
   // Музыка: прямая ссылка на mp3/ogg. Пустая строка = без музыки.
   musicUrl: "https://nu.vgmtreasurechest.com/soundtracks/call-of-duty-modern-warfare-2019-original-game-soundtrack/bvzjypdy/02%20-%20Piccadilly%20Circus.mp3",
 
-  // Громкость музыки: от 0.0 до 1.0
+  // Громкость музыки: 0.0 = тихо, 1.0 = максимум
   musicVolume: 0.1,
 
   // Картинки фона (прямые ссылки, любое количество).
@@ -259,80 +259,34 @@ if (CONFIG.images.length > 0) {
     }, CONFIG.slideshowInterval * 1000);
   }
 } else if (CONFIG.youtubeVideoId) {
+  // Простой iframe — работает всегда, без капризного API.
+  // mute=1 — видео без звука, controls=0 — без панели.
   const yt = document.getElementById('yt-container');
   yt.style.display = 'block';
+  document.getElementById('yt-frame').src =
+    'https://www.youtube.com/embed/' + CONFIG.youtubeVideoId +
+    '?autoplay=1&mute=1&controls=0&rel=0&playsinline=1&loop=1' +
+    '&playlist=' + CONFIG.youtubeVideoId +
+    '&iv_load_policy=3&disablekb=1&fs=0&modestbranding=1';
 
-  window.onYouTubeIframeAPIReady = function () {
-    new YT.Player('yt-player', {
-      videoId: CONFIG.youtubeVideoId,
-      playerVars: {
-        autoplay: 1,
-        mute: 1,
-        controls: 0,
-        rel: 0,
-        playsinline: 1,
-        loop: 1,
-        playlist: CONFIG.youtubeVideoId,
-        iv_load_policy: 3,
-        disablekb: 1,
-        fs: 0,
-        modestbranding: 1,
-        cc_load_policy: 0
-      },
-      events: {
-        onReady: function (e) {
-          e.target.mute();
-
-          // Принудительно убираем субтитры
-          try { e.target.unloadModule('captions'); } catch (err) {}
-          try { e.target.setOption('captions', 'track', {}); } catch (err) {}
-
-          // Отбираем у плеера фокус, чтобы не всплывали кнопки
-          try {
-            const f = e.target.getIframe();
-            f.setAttribute('tabindex', '-1');
-            if (f.blur) f.blur();
-            // Дублируем размер прямо в inline-стиль плеера (!important)
-            f.style.setProperty('width',  '214vh',   'important');
-            f.style.setProperty('height', '120.4vh', 'important');
-            f.style.setProperty('pointer-events', 'none', 'important');
-          } catch (err) {}
-
-          e.target.playVideo();
-
-          // Контрольное добивание субтитров первые 5 секунд
-          let n = 0;
-          const kill = setInterval(() => {
-            try { e.target.unloadModule('captions'); } catch (err) {}
-            if (++n > 10) clearInterval(kill);
-          }, 500);
-
-          // Плавно открываем видео через 1.5 сек (прячем стартовые кнопки)
-          setTimeout(() => {
-            document.getElementById('yt-curtain').style.opacity = '0';
-          }, 1500);
-        },
-        onStateChange: function (e) {
-          if (e.data === YT.PlayerState.PLAYING) {
-            try { e.target.unloadModule('captions'); } catch (err) {}
-          }
-          if (e.data === YT.PlayerState.ENDED) e.target.seekTo(0);
-        }
-      }
-    });
-  };
-
-  const tag = document.createElement('script');
-  tag.src = 'https://www.youtube.com/iframe_api';
-  document.head.appendChild(tag);
+  // Занавес открывается по таймеру (2.5 сек), ни от чего не зависит
+  setTimeout(() => {
+    document.getElementById('yt-curtain').style.opacity = '0';
+  }, 2500);
 }
 
 // ---------- МУЗЫКА ----------
 if (CONFIG.musicUrl) {
   const audio = document.getElementById('bg-music');
-  audio.src = CONFIG.musicUrl;
   audio.volume = CONFIG.musicVolume;
-  const tryPlay = () => audio.play().catch(() => {});
+  audio.src = CONFIG.musicUrl;
+
+  // Применяем громкость повторно, чтобы уж точно
+  const applyVol = () => { audio.volume = CONFIG.musicVolume; };
+  audio.addEventListener('loadedmetadata', applyVol);
+  audio.addEventListener('play', applyVol);
+
+  const tryPlay = () => { applyVol(); audio.play().catch(() => {}); };
   tryPlay();
   document.addEventListener('click', tryPlay);
   document.addEventListener('keydown', tryPlay);
