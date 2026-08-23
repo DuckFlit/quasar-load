@@ -8,7 +8,7 @@
   * { margin: 0; padding: 0; box-sizing: border-box; }
 
   @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600&display=swap');
- 
+
   body {
     font-family: 'Inter', sans-serif;
     background: #0a0a0f;
@@ -44,29 +44,39 @@
     overflow: hidden;
     z-index: 0;
   }
-  /* Видео растянуто на весь экран как cover, без чёрных полос */
+  /* Плеер больше экрана на 20%: субтитры и панель YouTube уходят за края.
+     !important побеждает inline-стили, которые ставит сам YouTube. */
   #yt-player {
     position: absolute;
     top: 50%; left: 50%;
-    width: 100vw;
-    height: 56.25vw;
-    min-width: 177.78vh;
-    min-height: 100vh;
+    width: 214vh !important;
+    height: 120.4vh !important;
+    min-width: 100vw !important;
+    min-height: 67.5vw !important;
     transform: translate(-50%, -50%);
-    border: 0;
-    pointer-events: none;
+    border: 0 !important;
+    pointer-events: none !important;
   }
-  /* Невидимая заглушка: перехватывает мышь, чтобы плеер не показывал кнопки */
+  /* Невидимая заглушка: перехватывает мышь */
   .yt-blocker {
     position: absolute;
     inset: 0;
     z-index: 1;
   }
+  /* Занавес: прячет стартовые кнопки YouTube, потом плавно исчезает */
+  .yt-curtain {
+    position: absolute;
+    inset: 0;
+    z-index: 2;
+    background: #0a0a0f;
+    opacity: 1;
+    transition: opacity 1.2s ease;
+  }
 
   /* ---------- КОНТЕНТ ---------- */
   .content {
     position: relative;
-    z-index: 2;
+    z-index: 3;
     display: flex;
     flex-direction: column;
     align-items: center;
@@ -109,7 +119,7 @@
     bottom: 0;
     left: 0;
     right: 0;
-    z-index: 3;
+    z-index: 4;
     padding: 20px 40px 30px;
   }
 
@@ -164,6 +174,7 @@
 <div class="youtube-container" id="yt-container" style="display:none;">
   <div id="yt-player"></div>
   <div class="yt-blocker"></div>
+  <div class="yt-curtain" id="yt-curtain"></div>
 </div>
 
 <div class="content">
@@ -195,17 +206,14 @@ const CONFIG = {
 
   // Музыка: прямая ссылка на mp3/ogg. Пустая строка = без музыки.
   musicUrl: "https://nu.vgmtreasurechest.com/soundtracks/call-of-duty-modern-warfare-2019-original-game-soundtrack/bvzjypdy/02%20-%20Piccadilly%20Circus.mp3",
-  // Пример: "https://example.com/music.mp3"
 
   // Громкость музыки: от 0.0 до 1.0
-  musicVolume: 0.01,
+  musicVolume: 0.1,
 
   // Картинки фона (прямые ссылки, любое количество).
   // Если пусто — будет показано YouTube видео ниже.
   images: [
     // "https://example.com/image1.jpg",
-    // "https://example.com/image2.jpg",
-    // "https://example.com/image3.jpg",
   ],
 
   // Интервал смены картинок (секунды)
@@ -215,8 +223,6 @@ const CONFIG = {
   overlayDarkness: 0.4,
 
   // YouTube видео ID (показывается если нет картинок).
-  // Например: "dQw4w9WgXcQ" из ссылки youtube.com/watch?v=dQw4w9WgXcQ
-  // Пустая строка = просто чёрный фон.
   youtubeVideoId: "hDOueDT1cB0",
 
   // Цвета акцента прогресс-бара
@@ -253,7 +259,6 @@ if (CONFIG.images.length > 0) {
     }, CONFIG.slideshowInterval * 1000);
   }
 } else if (CONFIG.youtubeVideoId) {
-  // YouTube через официальный API: без субтитров, без кнопок, без звука
   const yt = document.getElementById('yt-container');
   yt.style.display = 'block';
 
@@ -263,26 +268,54 @@ if (CONFIG.images.length > 0) {
       playerVars: {
         autoplay: 1,
         mute: 1,
-        controls: 0,        // без панели управления
-        rel: 0,             // без похожих видео в конце
+        controls: 0,
+        rel: 0,
         playsinline: 1,
         loop: 1,
         playlist: CONFIG.youtubeVideoId,
-        iv_load_policy: 3,  // без аннотаций
-        disablekb: 1,       // клавиатура плеера отключена
+        iv_load_policy: 3,
+        disablekb: 1,
         fs: 0,
         modestbranding: 1,
-        cc_load_policy: 0   // субтитры выключены
+        cc_load_policy: 0
       },
       events: {
         onReady: function (e) {
           e.target.mute();
-          // Принудительно убираем субтитры (в т.ч. "[Music]")
+
+          // Принудительно убираем субтитры
           try { e.target.unloadModule('captions'); } catch (err) {}
           try { e.target.setOption('captions', 'track', {}); } catch (err) {}
+
+          // Отбираем у плеера фокус, чтобы не всплывали кнопки
+          try {
+            const f = e.target.getIframe();
+            f.setAttribute('tabindex', '-1');
+            if (f.blur) f.blur();
+            // Дублируем размер прямо в inline-стиль плеера (!important)
+            f.style.setProperty('width',  '214vh',   'important');
+            f.style.setProperty('height', '120.4vh', 'important');
+            f.style.setProperty('pointer-events', 'none', 'important');
+          } catch (err) {}
+
           e.target.playVideo();
+
+          // Контрольное добивание субтитров первые 5 секунд
+          let n = 0;
+          const kill = setInterval(() => {
+            try { e.target.unloadModule('captions'); } catch (err) {}
+            if (++n > 10) clearInterval(kill);
+          }, 500);
+
+          // Плавно открываем видео через 1.5 сек (прячем стартовые кнопки)
+          setTimeout(() => {
+            document.getElementById('yt-curtain').style.opacity = '0';
+          }, 1500);
         },
         onStateChange: function (e) {
+          if (e.data === YT.PlayerState.PLAYING) {
+            try { e.target.unloadModule('captions'); } catch (err) {}
+          }
           if (e.data === YT.PlayerState.ENDED) e.target.seekTo(0);
         }
       }
