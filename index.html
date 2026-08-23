@@ -37,15 +37,13 @@
     z-index: 1;
   }
 
-  /* ---------- YouTube видео (фон) ---------- */
+  /* ---------- YouTube ---------- */
   .youtube-container {
     position: fixed;
     inset: 0;
     overflow: hidden;
     z-index: 0;
   }
-  /* Плеер больше экрана на ~20%: субтитры и панель YouTube
-     физически уезжают за края экрана */
   #yt-frame {
     position: absolute;
     top: 50%; left: 50%;
@@ -57,13 +55,7 @@
     border: 0;
     pointer-events: none;
   }
-  /* Невидимая заглушка: перехватывает мышь, плеер не видит наведений */
-  .yt-blocker {
-    position: absolute;
-    inset: 0;
-    z-index: 1;
-  }
-  /* Занавес: прячет стартовую мишуру YouTube, открывается по таймеру */
+  .yt-blocker { position: absolute; inset: 0; z-index: 1; }
   .yt-curtain {
     position: absolute;
     inset: 0;
@@ -102,15 +94,74 @@
     letter-spacing: 1px;
   }
 
+  /* ---------- ЭТАПЫ (степпер) ---------- */
+  .stages {
+    display: flex;
+    gap: 8px;
+    margin-top: 28px;
+    flex-wrap: wrap;
+    justify-content: center;
+  }
+  .stage {
+    display: flex;
+    align-items: center;
+    gap: 7px;
+    padding: 7px 14px;
+    border-radius: 999px;
+    background: rgba(255,255,255,0.05);
+    border: 1px solid rgba(255,255,255,0.09);
+    font-size: 11px;
+    letter-spacing: 1px;
+    text-transform: uppercase;
+    opacity: 0.3;
+    transition: all 0.5s ease;
+  }
+  .stage .dot {
+    width: 12px; height: 12px;
+    border-radius: 50%;
+    background: rgba(255,255,255,0.35);
+    color: transparent;
+    font-size: 8px;
+    line-height: 12px;
+    text-align: center;
+    transition: all 0.3s;
+  }
+  .stage.active {
+    opacity: 1;
+    border-color: var(--accent);
+    background: rgba(255,255,255,0.08);
+    box-shadow: 0 0 18px -4px var(--accent);
+  }
+  .stage.active .dot {
+    background: var(--accent);
+    animation: pulse 1.1s ease infinite;
+  }
+  .stage.done { opacity: 0.65; }
+  .stage.done .dot { background: #4ade80; color: #0a0a0f; }
+  @keyframes pulse { 50% { opacity: 0.3; } }
+
+  /* ---------- СТАТУС-СТРОКА (как в Source) ---------- */
   .status-text {
-    margin-top: 24px;
-    font-size: clamp(12px, 1.5vw, 16px);
-    font-weight: 300;
-    opacity: 0.5;
-    max-width: 600px;
+    margin-top: 20px;
+    font-family: Consolas, Monaco, monospace;
+    font-size: clamp(11px, 1.4vw, 14px);
+    opacity: 0.55;
+    max-width: 700px;
     overflow: hidden;
     text-overflow: ellipsis;
     white-space: nowrap;
+  }
+  .dots::after {
+    content: '';
+    animation: dots 1.5s steps(4, end) infinite;
+  }
+  body.is-ready .dots { display: none; }
+  @keyframes dots {
+    0%   { content: ''; }
+    25%  { content: '.'; }
+    50%  { content: '..'; }
+    75%  { content: '...'; }
+    100% { content: ''; }
   }
 
   /* ---------- ПРОГРЕСС-БАР ---------- */
@@ -122,16 +173,25 @@
     z-index: 4;
     padding: 20px 40px 30px;
   }
-
   .progress-label {
     display: flex;
-    justify-content: space-between;
+    gap: 16px;
+    align-items: baseline;
+    font-family: Consolas, Monaco, monospace;
     font-size: 12px;
-    font-weight: 400;
-    opacity: 0.6;
+    opacity: 0.75;
     margin-bottom: 8px;
-    letter-spacing: 0.5px;
   }
+  #progress-percent { min-width: 42px; }
+  #progress-file {
+    flex: 1;
+    text-align: center;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    opacity: 0.7;
+  }
+  #progress-files { min-width: 70px; text-align: right; }
 
   .progress-track {
     width: 100%;
@@ -140,7 +200,6 @@
     border-radius: 4px;
     overflow: hidden;
   }
-
   .progress-fill {
     height: 100%;
     width: 0%;
@@ -149,20 +208,12 @@
     transition: width 0.4s ease;
     box-shadow: 0 0 12px var(--accent, #6c8aff);
   }
+  body.is-ready .progress-fill {
+    background: linear-gradient(90deg, #22c55e, #4ade80);
+    box-shadow: 0 0 14px #22c55e;
+  }
 
   audio { display: none; }
-
-  .dots::after {
-    content: '';
-    animation: dots 1.5s steps(4, end) infinite;
-  }
-  @keyframes dots {
-    0%   { content: ''; }
-    25%  { content: '.'; }
-    50%  { content: '..'; }
-    75%  { content: '...'; }
-    100% { content: ''; }
-  }
 </style>
 </head>
 <body>
@@ -170,7 +221,6 @@
 <div id="bg-container"></div>
 <div class="bg-overlay"></div>
 
-<!-- YouTube (если нет картинок) -->
 <div class="youtube-container" id="yt-container" style="display:none;">
   <iframe id="yt-frame" src="" allow="autoplay; encrypted-media"></iframe>
   <div class="yt-blocker"></div>
@@ -180,13 +230,15 @@
 <div class="content">
   <div class="server-name" id="server-name">Загрузка...</div>
   <div class="map-name" id="map-name"></div>
-  <div class="status-text" id="status-text">Подключение к серверу</div>
+  <div class="stages" id="stages"></div>
+  <div class="status-text"><span id="status-line">Подключение к серверу</span><span class="dots"></span></div>
 </div>
 
 <div class="progress-wrapper">
   <div class="progress-label">
     <span id="progress-percent">0%</span>
     <span id="progress-file"></span>
+    <span id="progress-files"></span>
   </div>
   <div class="progress-track">
     <div class="progress-fill" id="progress-fill"></div>
@@ -201,34 +253,84 @@
    ============================================================ */
 const CONFIG = {
 
-  // Название сервера (если сервер не передаст своё)
   serverName: "QUASAR | ВСПЫШКА ВИРУСА REVIVAL",
 
-  // Музыка: прямая ссылка на mp3/ogg. Пустая строка = без музыки.
   musicUrl: "https://nu.vgmtreasurechest.com/soundtracks/call-of-duty-modern-warfare-2019-original-game-soundtrack/bvzjypdy/02%20-%20Piccadilly%20Circus.mp3",
-
-  // Громкость музыки: 0.0 = тихо, 1.0 = максимум
   musicVolume: 0.1,
 
-  // Картинки фона (прямые ссылки, любое количество).
-  // Если пусто — будет показано YouTube видео ниже.
   images: [
     // "https://example.com/image1.jpg",
   ],
 
-  // Интервал смены картинок (секунды)
   slideshowInterval: 8,
-
-  // Затемнение фона: 0.0 = нет, 1.0 = полностью чёрный
   overlayDarkness: 0.4,
+  youtubeVideoId: "hDOueDT1cB0",
 
-  // YouTube видео ID (показывается если нет картинок).
-  youtubeVideoId: "K8rs-j1TQPE",
-
-  // Цвета акцента прогресс-бара
   accentColor: "#6c8aff",
   accentColor2: "#a855f7",
 };
+
+/* ============================================================
+   ЭТАПЫ ЗАГРУЗКИ
+   ============================================================ */
+const STAGES = [
+  'Подключение',
+  'Карта',
+  'Workshop',
+  'Файлы сервера',
+  'Lua',
+  'Готово к игре',
+];
+
+// Приоритетный поиск этапа по статусу от движка (en + ru)
+const STAGE_MATCHERS = [
+  [5, /ready|готов|done|complete|finish|fully/i],
+  [2, /workshop|мастерск|addon/i],
+  [4, /lua|script/i],
+  [3, /download|file|файл|sound|model|material/i],
+  [1, /world|map|карт|precach|loading|загруз/i],
+  [0, /connect|join|retriev|подключ|server info/i],
+];
+
+let stageIndex = 0;
+const stageEls = [];
+const stagesBox = document.getElementById('stages');
+
+STAGES.forEach(label => {
+  const el = document.createElement('div');
+  el.className = 'stage';
+  el.innerHTML = '<span class="dot">✓</span>' + label;
+  stagesBox.appendChild(el);
+  stageEls.push(el);
+});
+
+function renderStages() {
+  stageEls.forEach((el, i) => {
+    el.classList.toggle('done',   i <  stageIndex);
+    el.classList.toggle('active', i === stageIndex);
+  });
+}
+
+function setStage(i) {
+  if (i > stageIndex) {
+    stageIndex = i;
+    renderStages();
+    if (i === 5) markReady();
+  }
+}
+
+function detectStage(status) {
+  for (const [idx, re] of STAGE_MATCHERS) {
+    if (re.test(status)) { setStage(idx); break; }
+  }
+}
+
+function markReady() {
+  document.body.classList.add('is-ready');
+  updateProgress(100);
+}
+
+renderStages();
 
 /* ============================================================
    ИНИЦИАЛИЗАЦИЯ
@@ -259,8 +361,6 @@ if (CONFIG.images.length > 0) {
     }, CONFIG.slideshowInterval * 1000);
   }
 } else if (CONFIG.youtubeVideoId) {
-  // Простой iframe — работает всегда, без капризного API.
-  // mute=1 — видео без звука, controls=0 — без панели.
   const yt = document.getElementById('yt-container');
   yt.style.display = 'block';
   document.getElementById('yt-frame').src =
@@ -269,7 +369,6 @@ if (CONFIG.images.length > 0) {
     '&playlist=' + CONFIG.youtubeVideoId +
     '&iv_load_policy=3&disablekb=1&fs=0&modestbranding=1';
 
-  // Занавес открывается по таймеру (2.5 сек), ни от чего не зависит
   setTimeout(() => {
     document.getElementById('yt-curtain').style.opacity = '0';
   }, 2500);
@@ -281,7 +380,6 @@ if (CONFIG.musicUrl) {
   audio.volume = CONFIG.musicVolume;
   audio.src = CONFIG.musicUrl;
 
-  // Применяем громкость повторно, чтобы уж точно
   const applyVol = () => { audio.volume = CONFIG.musicVolume; };
   audio.addEventListener('loadedmetadata', applyVol);
   audio.addEventListener('play', applyVol);
@@ -304,28 +402,39 @@ function updateProgress(percent) {
 /* ============================================================
    ФУНКЦИИ, КОТОРЫЕ ВЫЗЫВАЕТ ДВИЖОК GMOD
    ============================================================ */
-function GameDetails(servername, serverurl, mapname, maxplayers, steamid, gamemode) {
+function GameDetails(servername, serverurl, mapname, maxplayers, steamid, gamemode, volume, language, gamemodeNice) {
   if (servername) document.getElementById('server-name').textContent = servername;
-  if (mapname) document.getElementById('map-name').textContent = mapname;
+  if (mapname) {
+    document.getElementById('map-name').textContent =
+      mapname + (gamemodeNice ? ' • ' + gamemodeNice : '');
+  }
+  setStage(1);
 }
 
 function SetStatusChanged(status) {
-  document.getElementById('status-text').innerHTML = status + '<span class="dots"></span>';
+  document.getElementById('status-line').textContent = status;
+  detectStage(status);
 }
 
 function DownloadingFile(filename) {
   document.getElementById('progress-file').textContent = filename;
+  setStage(3);
 }
 
-function SetFilesTotal(total) { totalFiles = total; }
+function SetFilesTotal(total) {
+  totalFiles = total;
+  if (total > 0) setStage(3);
+}
 
 function SetFilesNeeded(needed) {
   if (totalFiles > 0) {
+    document.getElementById('progress-files').textContent =
+      (totalFiles - needed) + ' / ' + totalFiles;
     updateProgress(((totalFiles - needed) / totalFiles) * 100);
   }
 }
 
-// ---------- Фоллбэк: параметры из URL ----------
+// ---------- Фоллбэк: параметры из URL + ДЕМО-РЕЖИМ ----------
 (function() {
   const params = new URLSearchParams(window.location.search);
   const s = params.get('s');
@@ -334,6 +443,25 @@ function SetFilesNeeded(needed) {
   if (s) document.getElementById('server-name').textContent = s;
   if (m) document.getElementById('map-name').textContent = m;
   if (l) updateProgress(parseFloat(l));
+
+  // ?demo=1 — симуляция всей загрузки для проверки в браузере
+  if (params.get('demo')) {
+    const S = (ms, f) => setTimeout(f, ms);
+    const files = [
+      'materials/quasar/wall_dark.vtf',
+      'models/quasar/zombie.mdl',
+      'sound/quasar/ambient_wind.wav',
+      'materials/quasar/floor_concrete.vtf',
+    ];
+    S(600,  () => GameDetails(CONFIG.serverName, '', 'rp_quasar_city', 24, 0, 'darkrp', 1, 'ru', 'DarkRP'));
+    S(1400, () => SetStatusChanged('Loading world...'));
+    S(2600, () => { SetStatusChanged('Downloading workshop item...'); SetFilesTotal(8); SetFilesNeeded(8); });
+    files.forEach((f, i) =>
+      S(3400 + i * 1100, () => { DownloadingFile(f); SetFilesNeeded(8 - (i + 1) * 2); })
+    );
+    S(8200, () => SetStatusChanged('Starting Lua...'));
+    S(9800, () => SetStatusChanged('Ready to play'));
+  }
 })();
 </script>
 </body>
