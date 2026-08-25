@@ -37,6 +37,18 @@
     z-index: 1;
   }
 
+  /* ---------- ПРЯМОЕ ВИДЕО (mp4/webm) ---------- */
+  #bg-video {
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100vw;
+    height: 100vh;
+    object-fit: cover;
+    z-index: 0;
+    pointer-events: none;
+  }
+
   /* ---------- YouTube ---------- */
   .youtube-container {
     position: fixed;
@@ -255,6 +267,7 @@
 <body>
 
 <div id="bg-container"></div>
+<video id="bg-video" muted loop playsinline style="display:none;"></video>
 <div class="bg-overlay"></div>
 
 <div class="youtube-container" id="yt-container" style="display:none;">
@@ -304,6 +317,10 @@ const CONFIG = {
 
   musicUrl: "https://nu.vgmtreasurechest.com/soundtracks/call-of-duty-modern-warfare-2019-original-game-soundtrack/bvzjypdy/02%20-%20Piccadilly%20Circus.mp3",
   musicVolume: 0.1,
+
+  // Прямая ссылка на видео (mp4/webm). Приоритетнее YouTube!
+  // Пример: "https://example.com/video.mp4"
+  videoUrl: "https://files.catbox.moe/tf2bvf.mp4",
 
   images: [
     // "https://example.com/image1.jpg",
@@ -386,11 +403,36 @@ document.documentElement.style.setProperty('--accent2', CONFIG.accentColor2);
 document.documentElement.style.setProperty('--overlay-darkness', CONFIG.overlayDarkness);
 document.getElementById('server-name').textContent = CONFIG.serverName;
 
-// ---------- ФОН ----------
+// ---------- ФОН: ПРИОРИТЕТ ----------
+// 1. Прямое видео (videoUrl)
+// 2. YouTube (youtubeVideoId)
+// 3. Картинки (images)
+// 4. Ничего (просто чёрный фон + overlay)
+
 let slides = [];
 let currentSlide = 0;
 
-if (CONFIG.images.length > 0) {
+if (CONFIG.videoUrl) {
+  // Прямое видео
+  const video = document.getElementById('bg-video');
+  video.src = CONFIG.videoUrl;
+  video.style.display = 'block';
+  video.play().catch(() => {});
+} else if (CONFIG.youtubeVideoId) {
+  // YouTube
+  const yt = document.getElementById('yt-container');
+  yt.style.display = 'block';
+  document.getElementById('yt-frame').src =
+    'https://www.youtube.com/embed/' + CONFIG.youtubeVideoId +
+    '?autoplay=1&mute=1&controls=0&rel=0&playsinline=1&loop=1' +
+    '&playlist=' + CONFIG.youtubeVideoId +
+    '&iv_load_policy=3&disablekb=1&fs=0&modestbranding=1';
+
+  setTimeout(() => {
+    document.getElementById('yt-curtain').style.opacity = '0';
+  }, 2500);
+} else if (CONFIG.images.length > 0) {
+  // Картинки
   const container = document.getElementById('bg-container');
   CONFIG.images.forEach((url, i) => {
     const div = document.createElement('div');
@@ -406,18 +448,6 @@ if (CONFIG.images.length > 0) {
       slides[currentSlide].classList.add('active');
     }, CONFIG.slideshowInterval * 1000);
   }
-} else if (CONFIG.youtubeVideoId) {
-  const yt = document.getElementById('yt-container');
-  yt.style.display = 'block';
-  document.getElementById('yt-frame').src =
-    'https://www.youtube.com/embed/' + CONFIG.youtubeVideoId +
-    '?autoplay=1&mute=1&controls=0&rel=0&playsinline=1&loop=1' +
-    '&playlist=' + CONFIG.youtubeVideoId +
-    '&iv_load_policy=3&disablekb=1&fs=0&modestbranding=1';
-
-  setTimeout(() => {
-    document.getElementById('yt-curtain').style.opacity = '0';
-  }, 2500);
 }
 
 // ---------- МУЗЫКА ----------
